@@ -47,7 +47,6 @@ func distributor(p Params, c DistributorChannels) {
 			}
 		}
 	}
-
 	turn := 0
 
 	// golWorker := new(engine.GOLWorker)
@@ -60,13 +59,17 @@ func distributor(p Params, c DistributorChannels) {
 	}
 	evolveResponse := &stubs.EvolveResponse{}
 	// Make the RPC call
+	//fmt.Println("call")
+
 	err = client.Call(stubs.EvolveWorldHandler, evolveRequest, evolveResponse)
 	if err != nil {
-		log.Fatal("RPC call error:", err)
+		log.Fatal("call error : ", err)
 	}
-	if evolveResponse == nil {
-		fmt.Println("evolve response nil")
-	}
+
+	//fmt.Println("call oaishdfiaobdsf")
+
+	world = evolveResponse.World
+	turn = evolveResponse.Turn
 
 	aliveCellsRequest := stubs.CalculateAliveCellsRequest{
 		World: world,
@@ -77,7 +80,7 @@ func distributor(p Params, c DistributorChannels) {
 	aliveCells := aliveCellsResponse.AliveCells
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
-	c.Events <- FinalTurnComplete{p.Turns, aliveCells}
+	c.Events <- FinalTurnComplete{turn, aliveCells}
 
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle

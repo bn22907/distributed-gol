@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net"
 	"net/rpc"
 	"uk.ac.bris.cs/gameoflife/gol"
@@ -12,6 +13,9 @@ import (
 type GOLWorker struct{}
 
 func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveResponse) (err error) {
+
+	fmt.Println("abc abc abc abc abc abc ")
+
 	world := req.World
 	p := gol.Params{
 		Turns:   req.Turn,
@@ -20,9 +24,11 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 
 	turn := 0
 
+	fmt.Println(p.Turns)
 	// TODO: Execute all turns of the Game of Life.
 	// Run Game of Life simulation for the specified number of turns
 	for turn < p.Turns {
+		fmt.Println(turn)
 		world = calculateNextState(world, p.ImageWidth, p.ImageHeight, turn)
 		turn++
 	}
@@ -33,7 +39,6 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 }
 
 func calculateNextState(world [][]byte, width int, height int, turn int) [][]byte {
-
 	nextState := make([][]byte, height)
 	//2D slice of bytes, height is length of outer slice
 	//each inner slice is of type byte
@@ -84,7 +89,7 @@ func calculateNextState(world [][]byte, width int, height int, turn int) [][]byt
 			}
 		}
 	}
-
+	fmt.Println("reach")
 	return nextState
 }
 
@@ -106,7 +111,6 @@ func (g *GOLWorker) CalculateAliveCells(req stubs.CalculateAliveCellsRequest, re
 func main() {
 	pAddr := flag.String("port", "8030", "Port to list on")
 	flag.Parse()
-	//rand.Seed(time.Now().UnixNano())
 	rpc.Register(&GOLWorker{})
 	listener, _ := net.Listen("tcp", ":"+*pAddr)
 	defer listener.Close()
