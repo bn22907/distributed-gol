@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net"
 	"net/rpc"
 	"uk.ac.bris.cs/gameoflife/gol"
@@ -10,26 +9,24 @@ import (
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
-type GOLWorker struct{}
+type GOLWorker struct {
+}
 
 func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveResponse) (err error) {
 
-	fmt.Println("abc abc abc abc abc abc ")
-
 	world := req.World
 	p := gol.Params{
-		Turns:   req.Turn,
-		Threads: req.Threads,
+		Turns:       req.Turn,
+		Threads:     req.Threads,
+		ImageWidth:  req.ImageWidth,
+		ImageHeight: req.ImageHeight,
 	}
 
 	turn := 0
-
-	fmt.Println(p.Turns)
 	// TODO: Execute all turns of the Game of Life.
 	// Run Game of Life simulation for the specified number of turns
 	for turn < p.Turns {
-		fmt.Println(turn)
-		world = calculateNextState(world, p.ImageWidth, p.ImageHeight, turn)
+		world = calculateNextState(world, p.ImageWidth, p.ImageHeight, turn) //this is making world empty
 		turn++
 	}
 
@@ -39,6 +36,7 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 }
 
 func calculateNextState(world [][]byte, width int, height int, turn int) [][]byte {
+
 	nextState := make([][]byte, height)
 	//2D slice of bytes, height is length of outer slice
 	//each inner slice is of type byte
@@ -89,13 +87,11 @@ func calculateNextState(world [][]byte, width int, height int, turn int) [][]byt
 			}
 		}
 	}
-	fmt.Println("reach")
 	return nextState
 }
 
 func (g *GOLWorker) CalculateAliveCells(req stubs.CalculateAliveCellsRequest, res *stubs.CalculateAliveCellsResponse) (err error) {
 	world := req.World
-
 	aliveCells := []util.Cell{}
 	for i := range world { //height
 		for j := range world[i] { //width

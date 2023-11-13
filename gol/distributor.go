@@ -52,31 +52,52 @@ func distributor(p Params, c DistributorChannels) {
 	// golWorker := new(engine.GOLWorker)
 	//request to make to server for evolving the world
 	evolveRequest := stubs.EvolveWorldRequest{
-		World:  world,
-		Width:  p.ImageWidth,
-		Height: p.ImageHeight,
-		Turn:   p.Turns,
+		World:       world,
+		Width:       p.ImageWidth,
+		Height:      p.ImageHeight,
+		Turn:        p.Turns,
+		Threads:     p.Threads,
+		ImageWidth:  p.ImageWidth,
+		ImageHeight: p.ImageHeight,
 	}
 	evolveResponse := &stubs.EvolveResponse{}
 	// Make the RPC call
-	//fmt.Println("call")
 
 	err = client.Call(stubs.EvolveWorldHandler, evolveRequest, evolveResponse)
 	if err != nil {
 		log.Fatal("call error : ", err)
 	}
-
-	//fmt.Println("call oaishdfiaobdsf")
-
-	world = evolveResponse.World
+	world = evolveResponse.World //world becomes empty here for some reason
 	turn = evolveResponse.Turn
 
 	aliveCellsRequest := stubs.CalculateAliveCellsRequest{
 		World: world,
 	}
+
+	isEmpty := true
+
+outerLoop:
+	for i := range world {
+		for j := range world[i] {
+			if world[i][j] != 0 {
+				isEmpty = false
+				break outerLoop
+			}
+		}
+	}
+	// Check the result
+	if isEmpty {
+		fmt.Println("Every cell in world is empty")
+	} else {
+		fmt.Println("World contains non-empty cells")
+	}
+
 	aliveCellsResponse := &stubs.CalculateAliveCellsResponse{}
 
-	client.Call(stubs.AliveCellsHandler, aliveCellsRequest, aliveCellsResponse)
+	err = client.Call(stubs.AliveCellsHandler, aliveCellsRequest, aliveCellsResponse)
+	if err != nil {
+		log.Fatal("call error : ", err)
+	}
 	aliveCells := aliveCellsResponse.AliveCells
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
