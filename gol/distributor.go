@@ -69,7 +69,7 @@ func distributor(p Params, c distributorChannels) {
 		for {
 			select {
 			case <-ticker.C:
-				empty := stubs.EmptyReq{}
+				empty := stubs.Empty{}
 				aliveCellsCountResponse := &stubs.AliveCellsCountResponse{}
 
 				err = client.Call(stubs.AliveCellsCountHandler, empty, aliveCellsCountResponse)
@@ -81,7 +81,44 @@ func distributor(p Params, c distributorChannels) {
 				turn := aliveCellsCountResponse.CompletedTurns
 
 				c.events <- AliveCellsCount{turn, numberAliveCells}
+				// Check for keypress events
+			case command := <-c.keyPresses:
+				// React based on the keypress command
+				empty := stubs.Empty{}
+				getGlobal := &stubs.GetGlobalResponse{}
+				err = client.Call(stubs.GetGlobalHandler, empty, getGlobal)
+				if err != nil {
+					log.Fatal("call error : ", err)
+					return
+				}
+				world = getGlobal.World
+				turn = getGlobal.Turns
 
+				switch command {
+				case 's': // 's' key is pressed
+					// StateChange event to indicate execution and save a PGM image
+					c.events <- StateChange{turn, Executing}
+					savePGMImage(c, world, p) // Function to save the current state as a PGM image
+
+				case 'q': // 'q' key is pressed
+					// StateChange event to indicate quitting and save a PGM image
+					c.events <- StateChange{turn, Quitting}
+					savePGMImage(c, world, p) // Function to save the current state as a PGM image
+					close(c.events)           // Close the events channel
+
+				case 'p': // 'p' key is pressed
+					// StateChange event to indicate pausing and print current turn processing status
+					c.events <- StateChange{turn, Paused}
+					fmt.Printf("Current turn %d being processed\n", turn)
+					// Wait for another 'p' keypress to resume execution
+					for {
+						if <-c.keyPresses == 'p' {
+							break
+						}
+					}
+					// StateChange event to indicate execution after pausing
+					c.events <- StateChange{turn, Executing}
+				}
 			default: // No events
 				if turn == p.Turns {
 					return

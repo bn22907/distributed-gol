@@ -3,13 +3,15 @@ package stubs
 import "uk.ac.bris.cs/gameoflife/util"
 
 var EvolveWorldHandler = "GOLWorker.EvolveWorld"
+var AliveCellsCountHandler = "GOLWorker.AliveCellsCount"
+var AliveCellsHandler = "GOLWorker.CalculateAliveCells"
+var GetGlobalHandler = "GOLWorker.GetGlobal"
 
 type EvolveResponse struct {
 	World [][]byte
 	Turn  int
 }
 
-// EvolveWorldRequest request struct that holds the parameters for the RPC call
 type EvolveWorldRequest struct {
 	World       [][]byte
 	Width       int
@@ -19,22 +21,18 @@ type EvolveWorldRequest struct {
 	ImageHeight int
 	ImageWidth  int
 }
-
-var AliveCellsHandler = "GOLWorker.CalculateAliveCells"
-
-// CalculateAliveCellsRequest request struct that holds parameters
 type CalculateAliveCellsRequest struct {
 	World [][]byte
 }
 type CalculateAliveCellsResponse struct {
 	AliveCells []util.Cell
 }
-
-var AliveCellsCountHandler = "GOLWorker.AliveCellsCount"
-
 type AliveCellsCountResponse struct {
 	AliveCellsCount int
 	CompletedTurns  int
 }
-
-type EmptyReq struct{}
+type GetGlobalResponse struct {
+	World [][]byte
+	Turns int
+}
+type Empty struct{}

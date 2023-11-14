@@ -98,7 +98,7 @@ func calculateNextState(world [][]byte, width int, height int, turn int) [][]byt
 	return nextState
 }
 
-func (g *GOLWorker) CalculateAliveCells(req stubs.EmptyReq, res *stubs.CalculateAliveCellsResponse) (err error) {
+func (g *GOLWorker) CalculateAliveCells(req stubs.Empty, res *stubs.CalculateAliveCellsResponse) (err error) {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
@@ -114,7 +114,7 @@ func (g *GOLWorker) CalculateAliveCells(req stubs.EmptyReq, res *stubs.Calculate
 	return
 }
 
-func (g *GOLWorker) AliveCellsCount(req stubs.EmptyReq, res *stubs.AliveCellsCountResponse) (err error) {
+func (g *GOLWorker) AliveCellsCount(req stubs.Empty, res *stubs.AliveCellsCountResponse) (err error) {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
@@ -128,6 +128,14 @@ func (g *GOLWorker) AliveCellsCount(req stubs.EmptyReq, res *stubs.AliveCellsCou
 	}
 	res.AliveCellsCount = len(aliveCells)
 	res.CompletedTurns = g.Turn
+	return
+}
+
+func (g *GOLWorker) GetGlobal(req stubs.Empty, res *stubs.GetGlobalResponse) (err error) {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	res.World = g.World
+	res.Turns = g.Turn
 	return
 }
 
