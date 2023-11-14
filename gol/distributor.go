@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"log"
 	"net/rpc"
+	"time"
 	"uk.ac.bris.cs/gameoflife/stubs"
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
 type DistributorChannels struct {
-	Events     chan<- Event
+	events     chan<- Event
 	ioCommand  chan<- ioCommand
 	ioIdle     <-chan bool
 	ioFilename chan<- string
@@ -20,12 +21,6 @@ type DistributorChannels struct {
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p Params, c DistributorChannels) {
-
-	// Connect to the server via RPC
-	client, err := rpc.Dial("tcp", "127.0.0.1:8030") // Replace "127.0.0.1:8030" with your server's IP and port
-	if err != nil {
-		log.Fatal("Error connecting to server:", err)
-	}
 
 	c.ioCommand <- ioInput
 	c.ioFilename <- fmt.Sprintf("%d%s%d", p.ImageWidth, "x", p.ImageHeight)
@@ -43,11 +38,17 @@ func distributor(p Params, c DistributorChannels) {
 	for i := range world {
 		for j := range world[i] {
 			if world[i][j] == 255 {
-				c.Events <- CellFlipped{0, util.Cell{j, i}}
+				c.events <- CellFlipped{0, util.Cell{j, i}}
 			}
 		}
 	}
 	turn := 0
+
+	// Connect to the server via RPC
+	client, err := rpc.Dial("tcp", "127.0.0.1:8030") // Replace "127.0.0.1:8030" with your server's IP and port
+	if err != nil {
+		log.Fatal("Error connecting to server:", err)
+	}
 
 	// golWorker := new(engine.GOLWorker)
 	//request to make to server for evolving the world
@@ -61,7 +62,30 @@ func distributor(p Params, c DistributorChannels) {
 		ImageHeight: p.ImageHeight,
 	}
 	evolveResponse := &stubs.EvolveResponse{}
-	// Make the RPC call
+
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				empty := stubs.EmptyReq{}
+				aliveCellsCountResponse := &stubs.AliveCellsCountResponse{}
+
+				err = client.Call(stubs.AliveCellsCountHandler, empty, aliveCellsCountResponse)
+				if err != nil {
+					log.Fatal("call error : ", err)
+				}
+				numberAliveCells := aliveCellsCountResponse.AliveCellsCount
+				completedTurns := aliveCellsCountResponse.CompletedTurns
+
+				c.events <- AliveCellsCount{completedTurns, numberAliveCells}
+
+			default: // No events
+			}
+		}
+		return
+	}()
 
 	err = client.Call(stubs.EvolveWorldHandler, evolveRequest, evolveResponse)
 	if err != nil {
@@ -74,24 +98,6 @@ func distributor(p Params, c DistributorChannels) {
 		World: world,
 	}
 
-	isEmpty := true
-
-outerLoop:
-	for i := range world {
-		for j := range world[i] {
-			if world[i][j] != 0 {
-				isEmpty = false
-				break outerLoop
-			}
-		}
-	}
-	// Check the result
-	if isEmpty {
-		fmt.Println("Every cell in world is empty")
-	} else {
-		fmt.Println("World contains non-empty cells")
-	}
-
 	aliveCellsResponse := &stubs.CalculateAliveCellsResponse{}
 
 	err = client.Call(stubs.AliveCellsHandler, aliveCellsRequest, aliveCellsResponse)
@@ -101,14 +107,14 @@ outerLoop:
 	aliveCells := aliveCellsResponse.AliveCells
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
-	c.Events <- FinalTurnComplete{turn, aliveCells}
+	c.events <- FinalTurnComplete{turn, aliveCells}
 
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
 
-	c.Events <- StateChange{turn, Quitting}
+	c.events <- StateChange{turn, Quitting}
 
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
-	close(c.Events)
+	close(c.events)
 }

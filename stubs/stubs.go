@@ -29,3 +29,12 @@ type CalculateAliveCellsRequest struct {
 type CalculateAliveCellsResponse struct {
 	AliveCells []util.Cell
 }
+
+var AliveCellsCountHandler = "GOLWorker.AliveCellsCount"
+
+type AliveCellsCountResponse struct {
+	AliveCellsCount int
+	CompletedTurns  int
+}
+
+type EmptyReq struct{}

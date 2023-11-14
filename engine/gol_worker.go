@@ -4,17 +4,20 @@ import (
 	"flag"
 	"net"
 	"net/rpc"
+	"sync"
 	"uk.ac.bris.cs/gameoflife/gol"
 	"uk.ac.bris.cs/gameoflife/stubs"
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
 type GOLWorker struct {
+	World [][]byte
+	Turn  int
+	Mu    sync.Mutex
 }
 
 func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveResponse) (err error) {
-
-	world := req.World
+	g.World = req.World
 	p := gol.Params{
 		Turns:       req.Turn,
 		Threads:     req.Threads,
@@ -22,16 +25,21 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 		ImageHeight: req.ImageHeight,
 	}
 
-	turn := 0
+	//turn := 0
+	g.Turn = 0
 	// TODO: Execute all turns of the Game of Life.
 	// Run Game of Life simulation for the specified number of turns
-	for turn < p.Turns {
-		world = calculateNextState(world, p.ImageWidth, p.ImageHeight, turn) //this is making world empty
-		turn++
+	for g.Turn < p.Turns {
+		g.Mu.Lock()
+		g.World = calculateNextState(g.World, p.ImageWidth, p.ImageHeight, g.Turn) //this is making world empty
+		//turn++
+		g.Turn++
+		g.Mu.Unlock()
 	}
 
-	res.World = world
-	res.Turn = turn
+	res.World = g.World
+	//res.Turn = turn
+	res.Turn = g.Turn
 	return
 }
 
@@ -91,11 +99,14 @@ func calculateNextState(world [][]byte, width int, height int, turn int) [][]byt
 }
 
 func (g *GOLWorker) CalculateAliveCells(req stubs.CalculateAliveCellsRequest, res *stubs.CalculateAliveCellsResponse) (err error) {
-	world := req.World
+	//world := req.World
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+
 	aliveCells := []util.Cell{}
-	for i := range world { //height
-		for j := range world[i] { //width
-			if world[i][j] == 255 {
+	for i := range g.World { //height
+		for j := range g.World[i] { //width
+			if g.World[i][j] == 255 {
 				aliveCells = append(aliveCells, util.Cell{j, i})
 			}
 		}
@@ -104,9 +115,27 @@ func (g *GOLWorker) CalculateAliveCells(req stubs.CalculateAliveCellsRequest, re
 	return
 }
 
+func (g *GOLWorker) AliveCellsCount(req stubs.EmptyReq, res *stubs.AliveCellsCountResponse) (err error) {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+
+	aliveCells := []util.Cell{}
+	for i := range g.World { //height
+		for j := range g.World[i] { //width
+			if g.World[i][j] == 255 {
+				aliveCells = append(aliveCells, util.Cell{j, i})
+			}
+		}
+	}
+	res.AliveCellsCount = len(aliveCells)
+	res.CompletedTurns = g.Turn
+	return
+}
+
 func main() {
 	pAddr := flag.String("port", "8030", "Port to list on")
 	flag.Parse()
+	//World := make([][]byte)
 	rpc.Register(&GOLWorker{})
 	listener, _ := net.Listen("tcp", ":"+*pAddr)
 	defer listener.Close()
