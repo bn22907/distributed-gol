@@ -9,7 +9,7 @@ import (
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
-type DistributorChannels struct {
+type distributorChannels struct {
 	events     chan<- Event
 	ioCommand  chan<- ioCommand
 	ioIdle     <-chan bool
@@ -20,7 +20,7 @@ type DistributorChannels struct {
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c DistributorChannels) {
+func distributor(p Params, c distributorChannels) {
 
 	c.ioCommand <- ioInput
 	c.ioFilename <- fmt.Sprintf("%d%s%d", p.ImageWidth, "x", p.ImageHeight)
@@ -42,8 +42,8 @@ func distributor(p Params, c DistributorChannels) {
 			}
 		}
 	}
-	turn := 0
 
+	turn := 0
 	// Connect to the server via RPC
 	client, err := rpc.Dial("tcp", "127.0.0.1:8030") // Replace "127.0.0.1:8030" with your server's IP and port
 	if err != nil {
@@ -75,16 +75,19 @@ func distributor(p Params, c DistributorChannels) {
 				err = client.Call(stubs.AliveCellsCountHandler, empty, aliveCellsCountResponse)
 				if err != nil {
 					log.Fatal("call error : ", err)
+					return
 				}
 				numberAliveCells := aliveCellsCountResponse.AliveCellsCount
-				completedTurns := aliveCellsCountResponse.CompletedTurns
+				turn := aliveCellsCountResponse.CompletedTurns
 
-				c.events <- AliveCellsCount{completedTurns, numberAliveCells}
+				c.events <- AliveCellsCount{turn, numberAliveCells}
 
 			default: // No events
+				if turn == p.Turns {
+					return
+				}
 			}
 		}
-		return
 	}()
 
 	err = client.Call(stubs.EvolveWorldHandler, evolveRequest, evolveResponse)
@@ -108,6 +111,7 @@ func distributor(p Params, c DistributorChannels) {
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events <- FinalTurnComplete{turn, aliveCells}
+	savePGMImage(c, world, p)
 
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
@@ -117,4 +121,16 @@ func distributor(p Params, c DistributorChannels) {
 
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)
+}
+
+func savePGMImage(c distributorChannels, world [][]byte, p Params) {
+	c.ioCommand <- ioOutput
+	c.ioFilename <- fmt.Sprintf("%dx%dx%d", p.ImageWidth, p.ImageHeight, p.Turns)
+
+	// Iterate over the world and send each cell's value to the ioOutput channel for writing the PGM image
+	for i := range world {
+		for j := range world[i] {
+			c.ioOutput <- world[i][j] // Send the current cell value to the output channel
+		}
+	}
 }

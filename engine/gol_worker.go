@@ -98,8 +98,7 @@ func calculateNextState(world [][]byte, width int, height int, turn int) [][]byt
 	return nextState
 }
 
-func (g *GOLWorker) CalculateAliveCells(req stubs.CalculateAliveCellsRequest, res *stubs.CalculateAliveCellsResponse) (err error) {
-	//world := req.World
+func (g *GOLWorker) CalculateAliveCells(req stubs.EmptyReq, res *stubs.CalculateAliveCellsResponse) (err error) {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
