@@ -166,11 +166,6 @@ func (g *GOLWorker) KillServer(req stubs.Empty, res *stubs.Empty) (err error) {
 	return
 }
 
-//func (g *GOLWorker) ShutDown(req stubs.Empty, res *stubs.Empty) (err error) {
-//
-//	return
-//}
-
 func main() {
 	pAddr := flag.String("port", "8030", "Port to list on")
 	flag.Parse()
