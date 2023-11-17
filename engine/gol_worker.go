@@ -4,19 +4,25 @@ import (
 	"flag"
 	"net"
 	"net/rpc"
+	"os"
 	"sync"
 	"uk.ac.bris.cs/gameoflife/gol"
 	"uk.ac.bris.cs/gameoflife/stubs"
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
+var kill = make(chan bool)
+var quit = make(chan bool)
+
 type GOLWorker struct {
 	World [][]byte
 	Turn  int
 	Mu    sync.Mutex
+	Quit  bool
 }
 
 func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveResponse) (err error) {
+	g.Quit = false
 	g.World = req.World
 	p := gol.Params{
 		Turns:       req.Turn,
@@ -29,7 +35,7 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 	g.Turn = 0
 	// TODO: Execute all turns of the Game of Life.
 	// Run Game of Life simulation for the specified number of turns
-	for g.Turn < p.Turns {
+	for g.Turn < p.Turns && g.Quit == false {
 		g.Mu.Lock()
 		g.World = calculateNextState(g.World, p.ImageWidth, p.ImageHeight, g.Turn) //this is making world empty
 		//turn++
@@ -138,11 +144,43 @@ func (g *GOLWorker) GetGlobal(req stubs.Empty, res *stubs.GetGlobalResponse) (er
 	res.Turns = g.Turn
 	return
 }
+func (g *GOLWorker) QuitServer(req stubs.Empty, res *stubs.Empty) (err error) {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+
+	g.Quit = true
+
+	return
+}
+func (g *GOLWorker) Pause(req stubs.Empty, res *stubs.Empty) (err error) {
+	g.Mu.Lock()
+	return
+}
+func (g *GOLWorker) Unpause(req stubs.Empty, res *stubs.Empty) (err error) {
+	g.Mu.Unlock()
+	return
+}
+
+func (g *GOLWorker) KillServer(req stubs.Empty, res *stubs.Empty) (err error) {
+	kill <- true
+	return
+}
+
+//func (g *GOLWorker) ShutDown(req stubs.Empty, res *stubs.Empty) (err error) {
+//
+//	return
+//}
 
 func main() {
 	pAddr := flag.String("port", "8030", "Port to list on")
 	flag.Parse()
-	//World := make([][]byte)
+	go func() {
+		for {
+			if <-kill {
+				os.Exit(1)
+			}
+		}
+	}()
 	rpc.Register(&GOLWorker{})
 	listener, _ := net.Listen("tcp", ":"+*pAddr)
 	defer listener.Close()

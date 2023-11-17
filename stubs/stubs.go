@@ -6,6 +6,11 @@ var EvolveWorldHandler = "GOLWorker.EvolveWorld"
 var AliveCellsCountHandler = "GOLWorker.AliveCellsCount"
 var AliveCellsHandler = "GOLWorker.CalculateAliveCells"
 var GetGlobalHandler = "GOLWorker.GetGlobal"
+var PauseHandler = "GOLWorker.Pause"
+var UnpauseHandler = "GOLWorker.Unpause"
+var QuitHandler = "GOLWorker.QuitServer"
+
+var KillServerHandler = "GOLWorker.KillServer"
 
 type EvolveResponse struct {
 	World [][]byte

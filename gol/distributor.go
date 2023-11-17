@@ -85,6 +85,7 @@ func distributor(p Params, c distributorChannels) {
 			case command := <-c.keyPresses:
 				// React based on the keypress command
 				empty := stubs.Empty{}
+				emptyResponse := &stubs.Empty{}
 				getGlobal := &stubs.GetGlobalResponse{}
 				err = client.Call(stubs.GetGlobalHandler, empty, getGlobal)
 				if err != nil {
@@ -101,18 +102,26 @@ func distributor(p Params, c distributorChannels) {
 					savePGMImage(c, world, p) // Function to save the current state as a PGM image
 
 				case 'q': // 'q' key is pressed
+					fmt.Println("reached locally")
 					// StateChange event to indicate quitting and save a PGM image
+					err = client.Call(stubs.QuitHandler, empty, emptyResponse)
+					c.events <- StateChange{turn, Quitting}
+					savePGMImage(c, world, p) // Function to save the current state as a PGM image
+					close(c.events)           // Close the events channel
+
+				case 'k':
+					err = client.Call(stubs.KillServerHandler, empty, emptyResponse)
 					c.events <- StateChange{turn, Quitting}
 					savePGMImage(c, world, p) // Function to save the current state as a PGM image
 					close(c.events)           // Close the events channel
 
 				case 'p': // 'p' key is pressed
-					// StateChange event to indicate pausing and print current turn processing status
 					c.events <- StateChange{turn, Paused}
+					err = client.Call(stubs.PauseHandler, empty, emptyResponse)
 					fmt.Printf("Current turn %d being processed\n", turn)
-					// Wait for another 'p' keypress to resume execution
 					for {
 						if <-c.keyPresses == 'p' {
+							err = client.Call(stubs.UnpauseHandler, empty, emptyResponse)
 							break
 						}
 					}
