@@ -49,7 +49,6 @@ func distributor(p Params, c distributorChannels) {
 	if err != nil {
 		log.Fatal("Error connecting to server:", err)
 	}
-
 	// golWorker := new(engine.GOLWorker)
 	//request to make to server for evolving the world
 	evolveRequest := stubs.EvolveWorldRequest{
@@ -102,7 +101,6 @@ func distributor(p Params, c distributorChannels) {
 					savePGMImage(c, world, p) // Function to save the current state as a PGM image
 
 				case 'q': // 'q' key is pressed
-					fmt.Println("reached locally")
 					// StateChange event to indicate quitting and save a PGM image
 					err = client.Call(stubs.QuitHandler, empty, emptyResponse)
 					c.events <- StateChange{turn, Quitting}
@@ -135,12 +133,11 @@ func distributor(p Params, c distributorChannels) {
 			}
 		}
 	}()
-
 	err = client.Call(stubs.EvolveWorldHandler, evolveRequest, evolveResponse)
 	if err != nil {
 		log.Fatal("call error : ", err)
 	}
-	world = evolveResponse.World //world becomes empty here for some reason
+	world = evolveResponse.World
 	turn = evolveResponse.Turn
 
 	aliveCellsRequest := stubs.CalculateAliveCellsRequest{
