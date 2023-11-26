@@ -34,6 +34,21 @@ func distributor(p Params, c distributorChannels) {
 		}
 	}
 
+	// Connect to the server via RPC
+	client, err := rpc.Dial("tcp", "127.0.0.1:8030") // Replace "127.0.0.1:8030" with your server's IP and port
+	if err != nil {
+		log.Fatal("Error connecting to server:", err)
+	}
+
+	empty := stubs.Empty{}
+	continueResponse := &stubs.GetContinueResponse{}
+	err = client.Call(stubs.GetContinueHandler, empty, continueResponse)
+
+	if continueResponse.Continue {
+		world = continueResponse.World
+		fmt.Printf("Continuing From Turn %d\n", continueResponse.Turn)
+	}
+
 	// Send CellFlipped events for any initial live cells in the world.
 	for i := range world {
 		for j := range world[i] {
@@ -43,12 +58,7 @@ func distributor(p Params, c distributorChannels) {
 		}
 	}
 
-	turn := 0
-	// Connect to the server via RPC
-	client, err := rpc.Dial("tcp", "127.0.0.1:8030") // Replace "127.0.0.1:8030" with your server's IP and port
-	if err != nil {
-		log.Fatal("Error connecting to server:", err)
-	}
+	var turn int
 
 	//request to make to server for evolving the world
 	evolveRequest := stubs.EvolveWorldRequest{
@@ -64,8 +74,6 @@ func distributor(p Params, c distributorChannels) {
 
 	live := true
 	go func() {
-		fmt.Println("in flipping")
-		empty := stubs.Empty{}
 		cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
 		for live {
 			if !live {

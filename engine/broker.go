@@ -27,6 +27,7 @@ type GOLWorker struct {
 	TurnDone      bool
 	CellUpdates   []util.Cell
 	FlippedEvents []stubs.FlippedEvent
+	Continue      bool
 }
 
 //reads worker addresses line by line
@@ -105,10 +106,14 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 	fmt.Println("evolve world called")
 	g.Quit = false
 	// Create a separate copy of the input world to work on
-	g.World = make([][]byte, len(req.World))
-	for i := range req.World {
-		g.World[i] = make([]byte, len(req.World[i]))
-		copy(g.World[i], req.World[i])
+
+	if !g.Continue {
+		g.World = make([][]byte, len(req.World))
+		for i := range req.World {
+			g.World[i] = make([]byte, len(req.World[i]))
+			copy(g.World[i], req.World[i])
+		}
+		g.Turn = 0
 	}
 
 	worldSize(g.World)
@@ -120,7 +125,6 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 		ImageWidth:  req.ImageWidth,
 		ImageHeight: req.ImageHeight,
 	}
-	g.Turn = 0
 
 	// TODO: Execute all turns of the Game of Life.
 	// Run Game of Life simulation for the specified number of turns
@@ -194,12 +198,9 @@ func (g *GOLWorker) GetGlobal(req stubs.Empty, res *stubs.GetGlobalResponse) (er
 func (g *GOLWorker) QuitServer(req stubs.Empty, res *stubs.Empty) (err error) {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
-
+	g.Continue = true
 	g.Quit = true
-	empty := make([][]byte, len(g.World))
-	g.World = empty
-	g.Turn = 0
-	g.CellUpdates = []util.Cell{}
+	g.LastWorld = g.World
 
 	return
 }
@@ -231,6 +232,14 @@ func (g *GOLWorker) GetTurnDone(req stubs.Empty, res *stubs.GetTurnDoneResponse)
 	res.TurnDone = g.TurnDone
 	res.Turn = g.Turn
 	g.TurnDone = false
+	return
+}
+func (g *GOLWorker) GetContinue(req stubs.Empty, res *stubs.GetContinueResponse) (err error) {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	res.World = g.World
+	res.Continue = g.Continue
+	res.Turn = g.Turn
 	return
 }
 
@@ -309,7 +318,7 @@ func main() {
 		}
 	}
 
-	rpc.Register(&GOLWorker{Workers: workers})
+	rpc.Register(&GOLWorker{Workers: workers, Continue: false})
 	listener, err := net.Listen("tcp", ":"+*pAddr)
 	if err != nil {
 		fmt.Printf("Error starting listener: %s\n", err)

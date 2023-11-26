@@ -12,6 +12,7 @@ var QuitHandler = "GOLWorker.QuitServer"
 var KillServerHandler = "GOLWorker.KillServer"
 var GetBrokerCellFlippedHandler = "GOLWorker.GetCellFlipped"
 var GetTurnDoneHandler = "GOLWorker.GetTurnDone"
+var GetContinueHandler = "GOLWorker.GetContinue"
 
 type EvolveResponse struct {
 	World [][]byte
@@ -52,6 +53,11 @@ type GetTurnDoneResponse struct {
 	Turn     int
 }
 
+type GetContinueResponse struct {
+	Continue bool
+	World    [][]byte
+	Turn     int
+}
 type FlippedEvent struct {
 	CompletedTurns int
 	Cell           util.Cell
