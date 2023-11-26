@@ -63,51 +63,31 @@ func distributor(p Params, c distributorChannels) {
 	evolveResponse := &stubs.EvolveResponse{}
 
 	live := true
-	//go func() {
-	//	for live {
-	//		if !live {
-	//			break
-	//		}
-	//		empty := stubs.Empty{}
-	//		cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
-	//
-	//		err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
-	//		cellUpdates := cellFlippedResponse.Cell
-	//		fmt.Println(cellFlippedResponse.Turn)
-	//		if len(cellUpdates) != 0 && live {
-	//			for i := range cellUpdates {
-	//				c.events <- CellFlipped{cellFlippedResponse.Turn, cellUpdates[i]}
-	//			}
-	//		}
-	//		time.Sleep(5 * time.Millisecond)
-	//	}
-	//}()
+	go func() {
+		for live {
+			if !live {
+				break
+			}
+			empty := stubs.Empty{}
+			cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
+
+			err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
+			cellUpdates := cellFlippedResponse.Cell
+			fmt.Println(cellFlippedResponse.Turn)
+			if len(cellUpdates) != 0 && live {
+				for i := range cellUpdates {
+					c.events <- CellFlipped{cellFlippedResponse.Turn, cellUpdates[i]}
+				}
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
 
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for {
 			empty := stubs.Empty{}
-
-			go func() {
-				for live {
-					if !live {
-						break
-					}
-					empty := stubs.Empty{}
-					cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
-
-					err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
-					cellUpdates := cellFlippedResponse.Cell
-					fmt.Println(cellFlippedResponse.Turn)
-					if len(cellUpdates) != 0 && live {
-						for i := range cellUpdates {
-							c.events <- CellFlipped{cellFlippedResponse.Turn, cellUpdates[i]}
-						}
-					}
-					time.Sleep(5 * time.Millisecond)
-				}
-			}()
 
 			getTurnDoneRes := &stubs.GetTurnDoneResponse{}
 			client.Call(stubs.GetTurnDoneHandler, empty, getTurnDoneRes)
