@@ -44,11 +44,15 @@ type GetGlobalResponse struct {
 type Empty struct{}
 
 type GetBrokerCellFlippedResponse struct {
-	Cell []util.Cell
-	Turn int
+	FlippedEvents []FlippedEvent
 }
 
 type GetTurnDoneResponse struct {
 	TurnDone bool
 	Turn     int
+}
+
+type FlippedEvent struct {
+	CompletedTurns int
+	Cell           util.Cell
 }

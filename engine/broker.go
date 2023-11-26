@@ -17,14 +17,16 @@ import (
 var kill = make(chan bool)
 
 type GOLWorker struct {
-	World       [][]byte
-	Turn        int
-	Mu          sync.Mutex
-	Quit        bool
-	Workers     []*rpc.Client
-	Cell        util.Cell
-	TurnDone    bool
-	CellUpdates []util.Cell
+	LastWorld     [][]byte
+	World         [][]byte
+	Turn          int
+	Mu            sync.Mutex
+	Quit          bool
+	Workers       []*rpc.Client
+	Cell          util.Cell
+	TurnDone      bool
+	CellUpdates   []util.Cell
+	FlippedEvents []stubs.FlippedEvent
 }
 
 //reads worker addresses line by line
@@ -87,9 +89,31 @@ func worker(id int, world [][]byte, results chan<- [][]byte, p gol.Params, clien
 	return
 }
 
+func worldSize(world [][]byte) {
+	nonEmptyCount := 0
+	for _, row := range world {
+		for _, cell := range row {
+			if cell != 0 {
+				nonEmptyCount++
+			}
+		}
+	}
+	fmt.Printf("Number of non-empty cells: %d\n", nonEmptyCount)
+}
+
 func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveResponse) (err error) {
+	fmt.Println("evolve world called")
 	g.Quit = false
-	g.World = req.World
+	// Create a separate copy of the input world to work on
+	g.World = make([][]byte, len(req.World))
+	for i := range req.World {
+		g.World[i] = make([]byte, len(req.World[i]))
+		copy(g.World[i], req.World[i])
+	}
+
+	worldSize(g.World)
+
+	g.LastWorld = g.World
 	p := gol.Params{
 		Turns:       req.Turn,
 		Threads:     req.Threads,
@@ -105,6 +129,9 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 
 		var newWorld [][]byte
 		threads := len(g.Workers)
+		if g.Turn == 0 {
+			fmt.Printf("threads: %d\n", threads)
+		}
 		results := make([]chan [][]uint8, threads)
 		for id, workerClient := range g.Workers {
 			results[id] = make(chan [][]uint8)
@@ -114,8 +141,6 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 			slice := <-results[i]
 			newWorld = append(newWorld, slice...)
 		}
-
-		g.CellUpdates = append(g.CellUpdates, findFlippedCells(g.World, newWorld)...)
 
 		g.World = newWorld
 		g.Turn++
@@ -156,6 +181,7 @@ func (g *GOLWorker) AliveCellsCount(req stubs.Empty, res *stubs.AliveCellsCountR
 	}
 	res.AliveCellsCount = len(aliveCells)
 	res.CompletedTurns = g.Turn
+
 	return
 }
 func (g *GOLWorker) GetGlobal(req stubs.Empty, res *stubs.GetGlobalResponse) (err error) {
@@ -172,14 +198,8 @@ func (g *GOLWorker) QuitServer(req stubs.Empty, res *stubs.Empty) (err error) {
 	g.Quit = true
 	empty := make([][]byte, len(g.World))
 	g.World = empty
-
+	g.Turn = 0
 	g.CellUpdates = []util.Cell{}
-
-	// Close the existing client connections
-	for _, client := range g.Workers {
-		client.Close()
-	}
-	g.Workers = nil
 
 	return
 }
@@ -218,17 +238,24 @@ func (g *GOLWorker) GetCellFlipped(req stubs.Empty, res *stubs.GetBrokerCellFlip
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
-	fmt.Println(len(g.CellUpdates))
-	res.Cell = g.CellUpdates
-	g.CellUpdates = []util.Cell{}
-	res.Turn = g.Turn
+	g.FlippedEvents = []stubs.FlippedEvent{}
+	for _, cell := range findFlippedCells(g.World, g.LastWorld) {
+		flippedEvent := stubs.FlippedEvent{
+			CompletedTurns: g.Turn,
+			Cell:           cell,
+		}
+		g.FlippedEvents = append(g.FlippedEvents, flippedEvent)
+	}
+
+	g.LastWorld = g.World
+	res.FlippedEvents = g.FlippedEvents
 	return
 }
 
-func findFlippedCells(current [][]byte, next [][]byte) []util.Cell {
+func findFlippedCells(next [][]byte, current [][]byte) []util.Cell {
 	var flipped []util.Cell
 
-	if len(current) == 0 || len(next) == 0 {
+	if len(current) == 0 || len(next) == 0 || len(current[0]) == 0 || len(next[0]) == 0 {
 		return flipped
 	}
 

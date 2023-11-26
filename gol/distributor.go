@@ -63,62 +63,32 @@ func distributor(p Params, c distributorChannels) {
 	evolveResponse := &stubs.EvolveResponse{}
 
 	live := true
-	//go func() {
-	//	for live {
-	//		if !live {
-	//			break
-	//		}
-	//		empty := stubs.Empty{}
-	//		cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
-	//
-	//		err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
-	//		cellUpdates := cellFlippedResponse.Cell
-	//		fmt.Println(cellFlippedResponse.Turn)
-	//		if len(cellUpdates) != 0 && live {
-	//			for i := range cellUpdates {
-	//				c.events <- CellFlipped{cellFlippedResponse.Turn, cellUpdates[i]}
-	//			}
-	//		}
-	//		time.Sleep(5 * time.Millisecond)
-	//	}
-	//}()
-
+	go func() {
+		fmt.Println("in flipping")
+		empty := stubs.Empty{}
+		cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
+		for live {
+			if !live {
+				break
+			}
+			err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
+			cellUpdates := cellFlippedResponse.FlippedEvents
+			if len(cellUpdates) != 0 && live {
+				for i := range cellUpdates {
+					c.events <- CellFlipped{cellUpdates[i].CompletedTurns, cellUpdates[i].Cell}
+				}
+				c.events <- TurnComplete{CompletedTurns: cellUpdates[0].CompletedTurns}
+			}
+		}
+	}()
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for {
 			empty := stubs.Empty{}
-
-			go func() {
-				for live {
-					if !live {
-						break
-					}
-					empty := stubs.Empty{}
-					cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
-
-					err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
-					cellUpdates := cellFlippedResponse.Cell
-					fmt.Println(cellFlippedResponse.Turn)
-					if len(cellUpdates) != 0 && live {
-						for i := range cellUpdates {
-							c.events <- CellFlipped{cellFlippedResponse.Turn, cellUpdates[i]}
-						}
-					}
-					time.Sleep(5 * time.Millisecond)
-				}
-			}()
-
-			getTurnDoneRes := &stubs.GetTurnDoneResponse{}
-			client.Call(stubs.GetTurnDoneHandler, empty, getTurnDoneRes)
-			if getTurnDoneRes.TurnDone {
-				c.events <- TurnComplete{CompletedTurns: getTurnDoneRes.Turn}
-			}
-
 			select {
 			case <-ticker.C:
 				aliveCellsCountResponse := &stubs.AliveCellsCountResponse{}
-
 				err = client.Call(stubs.AliveCellsCountHandler, empty, aliveCellsCountResponse)
 				if err != nil {
 					log.Fatal("call error : ", err)
@@ -193,7 +163,6 @@ func distributor(p Params, c distributorChannels) {
 	aliveCellsRequest := stubs.CalculateAliveCellsRequest{
 		World: world,
 	}
-
 	aliveCellsResponse := &stubs.CalculateAliveCellsResponse{}
 
 	err = client.Call(stubs.AliveCellsHandler, aliveCellsRequest, aliveCellsResponse)
@@ -219,7 +188,6 @@ func distributor(p Params, c distributorChannels) {
 func savePGMImage(c distributorChannels, world [][]byte, p Params) {
 	c.ioCommand <- ioOutput
 	c.ioFilename <- fmt.Sprintf("%dx%dx%d", p.ImageWidth, p.ImageHeight, p.Turns)
-
 	// Iterate over the world and send each cell's value to the ioOutput channel for writing the PGM image
 	for i := range world {
 		for j := range world[i] {
