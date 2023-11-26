@@ -35,7 +35,7 @@ func distributor(p Params, c distributorChannels) {
 	}
 
 	// Connect to the server via RPC
-	client, err := rpc.Dial("tcp", "127.0.0.1:8030") // Replace "127.0.0.1:8030" with your server's IP and port
+	client, err := rpc.Dial("tcp", "52.55.126.105:8030") // Replace "127.0.0.1:8030" with your server's IP and port
 	if err != nil {
 		log.Fatal("Error connecting to server:", err)
 	}
