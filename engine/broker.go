@@ -315,6 +315,7 @@ func main() {
 		client, err := rpc.Dial("tcp", detail)
 		if err == nil {
 			workers = append(workers, client)
+			fmt.Printf("Worker connected on: %v\n", detail)
 		}
 	}
 
