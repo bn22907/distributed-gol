@@ -11,8 +11,7 @@ import (
 
 var kill = make(chan bool)
 
-type WorldOps struct {
-}
+type WorldOps struct{}
 
 func (w *WorldOps) CalculateWorld(req *stubs.WorldReq, res *stubs.WorldRes) (err error) {
 	res.World = calculateNextState(req.World, req.Width, req.Height, req.StartRow, req.EndRow)
@@ -54,7 +53,6 @@ func calculateNextState(world [][]byte, width int, height int, startRow int, end
 					nextState[i-startRow][j] = 0
 				}
 			} else { //if dead cell
-				//if 3 neighbors then alive
 				if sum == 3 {
 					nextState[i-startRow][j] = 255
 				} else { //else unaffected

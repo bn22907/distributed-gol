@@ -9,8 +9,9 @@ var GetGlobalHandler = "GOLWorker.GetGlobal"
 var PauseHandler = "GOLWorker.Pause"
 var UnpauseHandler = "GOLWorker.Unpause"
 var QuitHandler = "GOLWorker.QuitServer"
-
 var KillServerHandler = "GOLWorker.KillServer"
+var GetBrokerCellFlippedHandler = "GOLWorker.GetCellFlipped"
+var GetTurnDoneHandler = "GOLWorker.GetTurnDone"
 
 type EvolveResponse struct {
 	World [][]byte
@@ -41,3 +42,13 @@ type GetGlobalResponse struct {
 	Turns int
 }
 type Empty struct{}
+
+type GetBrokerCellFlippedResponse struct {
+	Cell []util.Cell
+	Turn int
+}
+
+type GetTurnDoneResponse struct {
+	TurnDone bool
+	Turn     int
+}
