@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/rpc"
+	"sync"
 	"time"
 	"uk.ac.bris.cs/gameoflife/stubs"
 	"uk.ac.bris.cs/gameoflife/util"
@@ -17,10 +18,17 @@ type distributorChannels struct {
 	ioOutput   chan<- uint8
 	ioInput    <-chan uint8
 	keyPresses <-chan rune
+	mu         sync.Mutex
+}
+
+type race struct {
+	turn   int
+	client *rpc.Client
+	mu     sync.Mutex
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels) {
+func distributor(p Params, c *distributorChannels) {
 
 	c.ioCommand <- ioInput
 	c.ioFilename <- fmt.Sprintf("%d%s%d", p.ImageWidth, "x", p.ImageHeight)
@@ -60,6 +68,8 @@ func distributor(p Params, c distributorChannels) {
 
 	var turn int
 
+	r := race{turn: turn, client: client}
+
 	//request to make to server for evolving the world
 	evolveRequest := stubs.EvolveWorldRequest{
 		World:       world,
@@ -72,30 +82,31 @@ func distributor(p Params, c distributorChannels) {
 	}
 	evolveResponse := &stubs.EvolveResponse{}
 
-	live := true
-	go func() {
-		cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
-		for live {
-			if !live {
-				break
-			}
-			err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
-			cellUpdates := cellFlippedResponse.FlippedEvents
-			if len(cellUpdates) != 0 && live {
-				for i := range cellUpdates {
-					c.events <- CellFlipped{cellUpdates[i].CompletedTurns, cellUpdates[i].Cell}
-				}
-				c.events <- TurnComplete{CompletedTurns: cellUpdates[0].CompletedTurns}
-			}
-		}
-	}()
+	//live := true
+	goWorld := world
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
+		tickSDL := time.NewTicker(1 * time.Millisecond)
 		defer ticker.Stop()
+		defer tickSDL.Stop()
 		for {
 			empty := stubs.Empty{}
 			select {
+			case <-tickSDL.C:
+				c.mu.Lock()
+				cellFlippedResponse := &stubs.GetBrokerCellFlippedResponse{}
+				err = client.Call(stubs.GetBrokerCellFlippedHandler, empty, cellFlippedResponse)
+				cellUpdates := cellFlippedResponse.FlippedEvents
+				if len(cellUpdates) != 0 {
+					for i := range cellUpdates {
+						c.events <- CellFlipped{cellUpdates[i].CompletedTurns, cellUpdates[i].Cell}
+					}
+					c.events <- TurnComplete{CompletedTurns: cellUpdates[0].CompletedTurns}
+				}
+				c.mu.Unlock()
+
 			case <-ticker.C:
+				c.mu.Lock()
 				aliveCellsCountResponse := &stubs.AliveCellsCountResponse{}
 				err = client.Call(stubs.AliveCellsCountHandler, empty, aliveCellsCountResponse)
 				if err != nil {
@@ -104,8 +115,8 @@ func distributor(p Params, c distributorChannels) {
 				}
 				numberAliveCells := aliveCellsCountResponse.AliveCellsCount
 				turn := aliveCellsCountResponse.CompletedTurns
-
 				c.events <- AliveCellsCount{turn, numberAliveCells}
+				c.mu.Unlock()
 				// Check for keypress events
 			case command := <-c.keyPresses:
 				// React based on the keypress command
@@ -117,32 +128,38 @@ func distributor(p Params, c distributorChannels) {
 					log.Fatal("call error : ", err)
 					return
 				}
-				world = getGlobal.World
-				turn = getGlobal.Turns
+				goWorld = getGlobal.World
+				r.turn = getGlobal.Turns
 
 				switch command {
 				case 's': // 's' key is pressed
 					// StateChange event to indicate execution and save a PGM image
-					c.events <- StateChange{turn, Executing}
-					savePGMImage(c, world, p) // Function to save the current state as a PGM image
+					c.mu.Lock()
+					c.events <- StateChange{r.turn, Executing}
+					c.mu.Unlock()
+					savePGMImage(c, goWorld, p) // Function to save the current state as a PGM image
 
 				case 'q': // 'q' key is pressed
 					// StateChange event to indicate quitting and save a PGM image
 					err = client.Call(stubs.QuitHandler, empty, emptyResponse)
-					c.events <- StateChange{turn, Quitting}
-					savePGMImage(c, world, p) // Function to save the current state as a PGM image
-					close(c.events)           // Close the events channel
-					live = false
+					c.mu.Lock()
+					c.events <- StateChange{r.turn, Quitting}
+					c.mu.Unlock()
+					savePGMImage(c, goWorld, p) // Function to save the current state as a PGM image
+					close(c.events)             // Close the events channel
+					//live = false
 
 				case 'k':
 					err = client.Call(stubs.KillServerHandler, empty, emptyResponse)
-					c.events <- StateChange{turn, Quitting}
-					savePGMImage(c, world, p) // Function to save the current state as a PGM image
-					live = false
+					c.mu.Lock()
+					c.events <- StateChange{r.turn, Quitting}
+					c.mu.Unlock()
+					savePGMImage(c, goWorld, p) // Function to save the current state as a PGM image
+					//live = false
 					close(c.events) // Close the events channel
 
 				case 'p': // 'p' key is pressed
-					c.events <- StateChange{turn, Paused}
+					c.events <- StateChange{r.turn, Paused}
 					err = client.Call(stubs.PauseHandler, empty, emptyResponse)
 					fmt.Printf("Current turn %d being processed\n", turn)
 					for {
@@ -152,10 +169,10 @@ func distributor(p Params, c distributorChannels) {
 						}
 					}
 					// StateChange event to indicate execution after pausing
-					c.events <- StateChange{turn, Executing}
+					c.events <- StateChange{r.turn, Executing}
 				}
 			default: // No events
-				if turn == p.Turns {
+				if r.turn == p.Turns {
 					return
 				}
 			}
@@ -193,7 +210,7 @@ func distributor(p Params, c distributorChannels) {
 	close(c.events)
 }
 
-func savePGMImage(c distributorChannels, world [][]byte, p Params) {
+func savePGMImage(c *distributorChannels, world [][]byte, p Params) {
 	c.ioCommand <- ioOutput
 	c.ioFilename <- fmt.Sprintf("%dx%dx%d", p.ImageWidth, p.ImageHeight, p.Turns)
 	// Iterate over the world and send each cell's value to the ioOutput channel for writing the PGM image

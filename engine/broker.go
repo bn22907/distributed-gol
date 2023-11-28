@@ -103,7 +103,6 @@ func worldSize(world [][]byte) {
 }
 
 func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveResponse) (err error) {
-	fmt.Println("evolve world called")
 	g.Quit = false
 	// Create a separate copy of the input world to work on
 
@@ -115,8 +114,6 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 		}
 		g.Turn = 0
 	}
-
-	worldSize(g.World)
 
 	g.LastWorld = g.World
 	p := gol.Params{
@@ -133,9 +130,6 @@ func (g *GOLWorker) EvolveWorld(req stubs.EvolveWorldRequest, res *stubs.EvolveR
 
 		var newWorld [][]byte
 		threads := len(g.Workers)
-		if g.Turn == 0 {
-			fmt.Printf("threads: %d\n", threads)
-		}
 		results := make([]chan [][]uint8, threads)
 		for id, workerClient := range g.Workers {
 			results[id] = make(chan [][]uint8)
