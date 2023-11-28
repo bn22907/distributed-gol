@@ -84,13 +84,18 @@ func distributor(p Params, c *distributorChannels) {
 
 	//live := true
 	goWorld := world
+	done := false
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		tickSDL := time.NewTicker(1 * time.Millisecond)
+		goDone := done
 		defer ticker.Stop()
 		defer tickSDL.Stop()
 		for {
 			empty := stubs.Empty{}
+			if goDone {
+				return
+			}
 			select {
 			case <-tickSDL.C:
 				c.mu.Lock()
@@ -114,8 +119,10 @@ func distributor(p Params, c *distributorChannels) {
 					return
 				}
 				numberAliveCells := aliveCellsCountResponse.AliveCellsCount
-				turn := aliveCellsCountResponse.CompletedTurns
-				c.events <- AliveCellsCount{turn, numberAliveCells}
+				r.turn = aliveCellsCountResponse.CompletedTurns
+				if !done {
+					c.events <- AliveCellsCount{r.turn, numberAliveCells}
+				}
 				c.mu.Unlock()
 				// Check for keypress events
 			case command := <-c.keyPresses:
@@ -147,6 +154,7 @@ func distributor(p Params, c *distributorChannels) {
 					c.mu.Unlock()
 					savePGMImage(c, goWorld, p) // Function to save the current state as a PGM image
 					close(c.events)             // Close the events channel
+					done = true
 					//live = false
 
 				case 'k':
@@ -157,6 +165,7 @@ func distributor(p Params, c *distributorChannels) {
 					savePGMImage(c, goWorld, p) // Function to save the current state as a PGM image
 					//live = false
 					close(c.events) // Close the events channel
+					done = true
 
 				case 'p': // 'p' key is pressed
 					c.events <- StateChange{r.turn, Paused}
@@ -208,6 +217,8 @@ func distributor(p Params, c *distributorChannels) {
 
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)
+	done = true
+
 }
 
 func savePGMImage(c *distributorChannels, world [][]byte, p Params) {
