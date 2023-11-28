@@ -104,9 +104,13 @@ func distributor(p Params, c *distributorChannels) {
 				cellUpdates := cellFlippedResponse.FlippedEvents
 				if len(cellUpdates) != 0 {
 					for i := range cellUpdates {
-						c.events <- CellFlipped{cellUpdates[i].CompletedTurns, cellUpdates[i].Cell}
+						if !done {
+							c.events <- CellFlipped{cellUpdates[i].CompletedTurns, cellUpdates[i].Cell}
+						}
 					}
-					c.events <- TurnComplete{CompletedTurns: cellUpdates[0].CompletedTurns}
+					if !done {
+						c.events <- TurnComplete{CompletedTurns: cellUpdates[0].CompletedTurns}
+					}
 				}
 				c.mu.Unlock()
 
