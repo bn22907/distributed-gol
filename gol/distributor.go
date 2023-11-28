@@ -159,6 +159,7 @@ func distributor(p Params, c *distributorChannels) {
 					savePGMImage(c, goWorld, p) // Function to save the current state as a PGM image
 					close(c.events)             // Close the events channel
 					done = true
+					return
 					//live = false
 
 				case 'k':
@@ -170,6 +171,7 @@ func distributor(p Params, c *distributorChannels) {
 					//live = false
 					close(c.events) // Close the events channel
 					done = true
+					return
 
 				case 'p': // 'p' key is pressed
 					c.events <- StateChange{r.turn, Paused}
