@@ -9,20 +9,23 @@ import (
 	"uk.ac.bris.cs/gameoflife/stubs"
 )
 
-var kill = make(chan bool)
+var kill = make(chan bool) //global kill channel for quitting a worker
 
 type WorldOps struct{}
 
+// CalculateWorld function returns the next state of the specified slice of each worker (returns a whole world but most is unchanged)
 func (w *WorldOps) CalculateWorld(req *stubs.WorldReq, res *stubs.WorldRes) (err error) {
 	res.World = calculateNextState(req.World, req.Width, req.Height, req.StartRow, req.EndRow)
 	return
 }
 
+// KillWorker function inputs true to the kill channel
 func (w *WorldOps) KillWorker(req *stubs.Empty, res *stubs.Empty) (err error) {
 	kill <- true
 	return
 }
 
+//function calculates the next state of the world
 func calculateNextState(world [][]byte, width int, height int, startRow int, endRow int) [][]byte {
 	nextState := make([][]byte, endRow-startRow)
 
@@ -67,14 +70,14 @@ func calculateNextState(world [][]byte, width int, height int, startRow int, end
 
 func main() {
 	pAddr := flag.String("port", "8040", "Port to listen on")
-	flag.Parse()
+	flag.Parse() //allows the use of a flag to specify port numbers in the terminal
 
 	ops := &WorldOps{}
 	rpc.Register(ops)
 
-	go func() {
-		for {
-			if <-kill {
+	go func() { //runs concurrently with rest of the broker
+		for { //infinitely loops
+			if <-kill { //if a true bool is received from the kill channel then os.Exit()
 				os.Exit(1)
 			}
 		}
